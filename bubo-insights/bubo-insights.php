@@ -8,7 +8,7 @@
  * Plugin Name:       Bubo Insights
  * Plugin URI:        https://github.com/pizza2mozzarella/bubo_insights
  * Description:       Bubo Insights tracks and displays the most useful user navigation data without using cookies or violating privacy. Simple, useful, effective.
- * Version:           1.0.0
+ * Version:           1.0.1
  * Author:            pizza2mozzarella
  * Author URI:        https://github.com/pizza2mozzarella/
  * License:           GPL-2.0+
@@ -25,13 +25,13 @@ if ( ! defined( 'WPINC' ) ) {
 	die;
 }
 
-define( 'BUBO_INSIGHT_VERSION', '1.0.0' );
+define( 'BUBO_INSIGHTS_VERSION', '1.0.1' );
 
 /* enqueuing jQuery... */
-function add_jquery_for_bubo_insights() { 
+function bubo_insights_add_jquery_() { 
     wp_enqueue_script( 'jquery' );
 }    
-add_action('init', 'add_jquery_for_bubo_insights');
+add_action('init', 'bubo_insights_add_jquery_');
 
 /* enqueuing the logging scripts... */
 function bubo_insights_tracking_scripts() {
@@ -54,17 +54,21 @@ function bubo_insights_main_page() {
 }
 add_action( 'admin_menu', 'bubo_insights_main_page' );
 
-/* csv export function */
-function bubo_insights_export_csv( $table = 'bubo_insights_event_log', $reportname = 'bubo_insights_event_log_backup', $timespan = '(true)', $select = '*', $filters = '(true)' ) {
+// csv export function
+function bubo_insights_export_csv( $table = 'bubo_insights_event_log', $reportname = 'event_log_backup' ) {
     
     global $wpdb;
+	
+	if( $table == 'bubo_insights_event_log' ){
+		$query = "SELECT * FROM wp_bubo_insights_event_log ORDER BY `id` DESC";
+	}
+	else if( $table == 'bubo_insights_visitors_log' ){
+		$query = "SELECT * FROM wp_bubo_insights_visitors_log ORDER BY `id` DESC";
+	}
 
     $table_name = $wpdb->prefix . $table;
-    $results = $wpdb->get_results("
-        SELECT $select FROM $table_name 
-        WHERE $filters AND $timespan
-      	ORDER BY `id` DESC
-    ");
+	$query_prepared = $wpdb->prepare( $query, array( ) );
+    $results = $wpdb->get_results( $query_prepared );
 	
 	$csv = '';
 	if( ! empty($results[0]) ){
@@ -75,27 +79,29 @@ function bubo_insights_export_csv( $table = 'bubo_insights_event_log', $reportna
         $csv .= implode(',' , get_object_vars($result));
         $csv .= "\n"; // important! Make sure to use use double quotation marks.
     }
+	$site_url_sanitized = str_replace( '.' , '-' , sanitize_url($_SERVER['SERVER_NAME']) );
     $date = date("YMd");
-    $filename = $date . '_' . $reportname . '.csv';
+    $filename = 'bubo_insights_' . $reportname . '_of_' . $date . '_for_' . $site_url_sanitized . '.csv';
     header( 'Content-Type: text/csv' ); // tells browser to download
     header( 'Content-Disposition: attachment; filename="' . $filename .'"' );
     header( 'Pragma: no-cache' ); // no cache
     header( "Expires: Sat, 01 Jan 1990 05:00:00 GMT" ); // expire date
 
-    echo $csv;
+    echo esc_textarea($csv);
     exit;
 }
 
-/* plugin settings page contents */
+// plugin's settings page contents
 function bubo_insights_settings_page_contents() {
     
     // CSV export mode
     if( isset( $_GET['export'] ) ) {
-        if($_GET['export']=='event_log_backup') {
-            bubo_insights_export_csv( 'bubo_insights_event_log', $_GET['export'] );
+		$report_name = sanitize_text_field( $_GET['export'] );
+        if( $report_name == 'event_log_backup' ) {
+            bubo_insights_export_csv( 'bubo_insights_event_log', $report_name );
         }
-        if($_GET['export']=='visitors_log_backup') {
-            bubo_insights_export_csv( 'bubo_insights_visitors_log', $_GET['export'] );
+        if( $report_name == 'visitors_log_backup' ) {
+            bubo_insights_export_csv( 'bubo_insights_visitors_log', $report_name );
         }
     }
                     
@@ -138,7 +144,7 @@ function bubo_insights_settings_page_contents() {
         
         <script>
         
-            var ajaxUrl = "<?php echo get_site_url(); ?>/wp-admin/admin-ajax.php";
+            var ajaxUrl = "<?php echo esc_url( get_site_url() ); ?>/wp-admin/admin-ajax.php";
             function drop_all_tables() {
                 var action = 'bubo_insights_drop_all_tables';
                 jQuery.ajax( ajaxUrl, {
@@ -169,7 +175,7 @@ function bubo_insights_settings_page_contents() {
     <?php
 }
 
-/* settings AJAX */
+// settings AJAX
 add_action('wp_ajax_bubo_insights_drop_all_tables', 'bubo_insights_drop_all_tables_callback');
 
 function bubo_insights_drop_all_tables_callback() {
@@ -179,7 +185,7 @@ function bubo_insights_drop_all_tables_callback() {
       
     $response = 'All tables dropped!';     
     $responseJSON = json_encode($response);
-    echo $responseJSON;
+    echo esc_html( $responseJSON );
     
   }
   else {   
@@ -188,12 +194,12 @@ function bubo_insights_drop_all_tables_callback() {
   die();
 }
 
-/* settings page*/
+// settings page
 function bubo_insights_settings_page() {
 	add_submenu_page(
       'bubo_insights',
-      __( 'Settings', 'my-textdomain' ),
-      __( 'Settings', 'my-textdomain' ),
+      'Settings',
+      'Settings',
       'publish_pages',
       'bubo_insights_settings',
       'bubo_insights_settings_page_contents',
@@ -203,12 +209,12 @@ function bubo_insights_settings_page() {
 }
 add_action( 'admin_menu', 'bubo_insights_settings_page' );
 
-/*stats page*/
+// stats page
 function bubo_insights_stats_page() {
 	add_submenu_page(
       'bubo_insights',
-      __( 'Stats', 'my-textdomain' ),
-      __( 'Stats', 'my-textdomain' ),
+      'Stats',
+      'Stats',
       'publish_pages',
       'bubo_insights',
       'bubo_insights_stats_page_contents',
@@ -218,8 +224,8 @@ function bubo_insights_stats_page() {
 }
 add_action( 'admin_menu', 'bubo_insights_stats_page' );
 
-/* bubo insights original hashing method chr_hash93 */
-/* converts a low collision sha1 hexadecimal hash into a 10 character long hash code with 93 ascii characters (33to125), replaces " and ' and , with ~ (126) for compatibility and peace of mind */
+// bubo insights original hashing method chr_hash93 
+// translates a low collision sha1 hexadecimal hash into a 10 character long hash code with 93 ascii characters (33to125), replaces " and ' and , and & and < and > with ~ (126) for compatibility and peace of mind
 function bubo_insights_chrhash93($input) {
     $chr_hash = '';
     $hash = sha1($input);
@@ -230,10 +236,13 @@ function bubo_insights_chrhash93($input) {
     $chr_hash = str_replace('"', '~', $chr_hash);
     $chr_hash = str_replace("'", "~", $chr_hash);
     $chr_hash = str_replace(",", "~", $chr_hash);
+	$chr_hash = str_replace('&', '~', $chr_hash);
+    $chr_hash = str_replace("<", "~", $chr_hash);
+    $chr_hash = str_replace(">", "~", $chr_hash);
     return $chr_hash;
 }
 
-/* event logging AJAX */
+// event logging AJAX
 add_action('wp_ajax_bubo_insights_event_log', 'bubo_insights_loggedin_event_log_callback');
 add_action('wp_ajax_nopriv_bubo_insights_event_log', 'bubo_insights_loggedout_event_log_callback');
 
@@ -247,47 +256,50 @@ function bubo_insights_loggedout_event_log_callback() {
 function bubo_insights_event_log_callback($loggedin)  {
 	if(!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest') {
 		
-		$user                       = md5($_SERVER['REMOTE_ADDR'].$_SERVER["HTTP_USER_AGENT"]);
+		$log_status 				= intval( sanitize_text_field($loggedin) );
+		$user                       = md5(sanitize_text_field($_SERVER['REMOTE_ADDR']).sanitize_text_field($_SERVER["HTTP_USER_AGENT"]));
+		$session_time				= sanitize_text_field($_REQUEST['sessiontime']);
 		$event                      = array();
 		$event['user']              = $user;
-		$event['loggedin']          = $loggedin;
-		$event['event']             = substr($_REQUEST['eventtype'], 0, 1);
-		$event['eventtype']         = $_REQUEST['eventtype'];
-		$event['eventtime']         = $_REQUEST['eventtime'];
-		$event['referrer']          = $_REQUEST['referrer'];
-		$event['origin']            = $_REQUEST['origin'];
-		$event['elementcontent']    = $_REQUEST['elementcontent'];
-		$event['elementtag']        = $_REQUEST['elementtag'];
-		$event['elementclass']      = $_REQUEST['elementclass'];
-		$event['link']              = $_REQUEST['link'];
+		$event['loggedin']          = $log_status;
+		$event['event']             = substr(sanitize_text_field($_REQUEST['eventtype']), 0, 1);
+		$event['eventtype']         = sanitize_text_field($_REQUEST['eventtype']);
+		$event['eventtime']         = sanitize_text_field($_REQUEST['eventtime']);
+		$event['referrer']          = sanitize_text_field($_REQUEST['referrer']);
+		$event['origin']            = sanitize_text_field($_REQUEST['origin']);
+		$event['elementcontent']    = sanitize_text_field($_REQUEST['elementcontent']);
+		$event['elementtag']        = sanitize_text_field($_REQUEST['elementtag']);
+		$event['elementclass']      = sanitize_text_field($_REQUEST['elementclass']);
+		$event['link']              = sanitize_url($_REQUEST['link']);
 		$visitor                    = array();
 		$visitor['user']            = $user;
-		$visitor['loggedin']        = $loggedin;
-		$visitor['scale']           = $_REQUEST['scale'];
-		$visitor['screenwidth']     = $_REQUEST['screenwidth'];
-		$visitor['screenheight']    = $_REQUEST['screenheight'];
-		if($_REQUEST['touchenabled'] == 'true') { $visitor['touchenabled'] = 1; } else { $visitor['touchenabled'] = 0; }
+		$visitor['loggedin']        = $log_status;
+		$visitor['scale']           = sanitize_text_field($_REQUEST['scale']);
+		$visitor['screenwidth']     = sanitize_text_field($_REQUEST['screenwidth']);
+		$visitor['screenheight']    = sanitize_text_field($_REQUEST['screenheight']);
+		$visitor['touchenabled']	= sanitize_text_field($_REQUEST['touchenabled']);
+		if($visitor['touchenabled'] == 'true') { $visitor['touchenabled'] = 1; } else { $visitor['touchenabled'] = 0; }
 		
-		$os_ua = $_SERVER["HTTP_USER_AGENT"];
+		$os_ua = sanitize_text_field($_SERVER["HTTP_USER_AGENT"]);
 		$open = strpos($os_ua, "(");
 		$close = strpos($os_ua, ")");
 		$ua_os = substr($os_ua, $open + 1, $close - $open - 1);
 		
-		$browser_ua = $_SERVER["HTTP_SEC_CH_UA"];
+		$browser_ua = sanitize_text_field($_SERVER["HTTP_SEC_CH_UA"]);
 		$browser = str_replace( '\"', '"', $browser_ua );
 		$browser = str_replace( ';v=', '' , $browser );
 		$browser = str_replace( '"', '' , $browser );
 		$browser = str_replace( ',', ';' , $browser );
 		$ua_browser = preg_replace('/[0-9]+/', '', $browser);
 		
-		$lang_ua = $_SERVER["HTTP_ACCEPT_LANGUAGE"];
+		$lang_ua = sanitize_text_field($_SERVER["HTTP_ACCEPT_LANGUAGE"]);
 		$lang = preg_replace('/[0-9]+/', '', $lang_ua);
 		$lang = str_replace( 'q=.', '' , $lang );
 		$lang = str_replace( ';,', ',' , $lang );
 		$lang = str_replace( ';', '' , $lang );
 		$ua_lang = str_replace( ',', '; ' , $lang );
 		
-		$mobile_ua = $_SERVER["HTTP_SEC_CH_UA_MOBILE"];
+		$mobile_ua = sanitize_text_field($_SERVER["HTTP_SEC_CH_UA_MOBILE"]);
 		$ua_mobile = str_replace( '?', '' , $mobile_ua );
 
 		$visitor['ua_os']               = $ua_os;
@@ -323,14 +335,14 @@ function bubo_insights_event_log_callback($loggedin)  {
 			OR ( str_contains($os_haystack, "mac") AND ! str_contains($os_haystack, "iphone") AND ! str_contains($os_haystack, "ipad") )
 			OR str_contains($os_haystack, "cros")
 			OR ( str_contains($os_haystack, "linux") AND ! str_contains($os_haystack, "android") )
-			OR $_REQUEST['touchenabled'] == 'false'
+			OR $visitor['touchenabled'] == 'false'
 		) {
 			$device = 'd';
 			$device_ext = 'DESK';
 		}
 		elseif ( str_contains($os_haystack, "ipad")
-				 OR ( str_contains($os_haystack, "android") AND ($ua_mobile = 0 OR $_REQUEST['scale'] < 2) )
-				 OR $_REQUEST['screenwidth'] > $_REQUEST['screenheight']
+				 OR ( str_contains($os_haystack, "android") AND ($ua_mobile = 0 OR $visitor['scale'] < 2) )
+				 OR $visitor['screenwidth'] > $visitor['screenheight']
 				 
 		) {
 			$device = 't';
@@ -355,9 +367,9 @@ function bubo_insights_event_log_callback($loggedin)  {
 		$event['user']              = $user_hash;
 		$visitor['user']            = $user_hash;
 		
-		$event['pagesession']       = substr(bubo_insights_chrhash93($user_hash . $_REQUEST['origin'] . $_REQUEST['inittime']), 0 , 4);
+		$event['pagesession']       = substr(bubo_insights_chrhash93($user_hash . $event['origin']), 0 , 4);
 
-		$event['sessionduration']   = $_REQUEST['sessiontime'];
+		$event['sessionduration']   = $session_time;
 	
 	    if( $event['event'] == 'p' OR $event['event'] == 'c' ) {
 			bubo_insights_eventlog_table_insert_record($event);
@@ -365,24 +377,23 @@ function bubo_insights_event_log_callback($loggedin)  {
 		}
 
 		global $wpdb;    
-		$table_name = $wpdb->prefix . 'bubo_insights_event_log';
-		$condition = " ( user = '" . $user_hash . "'  AND event = 'p' AND pagesession = '" . $event['pagesession'] . "' ) ";
-		$pagesession_id = $wpdb->get_results( "SELECT id FROM $table_name WHERE $condition ");
-		
-		$update = $wpdb->update(
-					$table_name,
-					array( 'sessionduration' => $_REQUEST['sessiontime']	),
-					array( 'id' => intval($pagesession_id[0]->id) ),
-					array( '%s'	)
+		$pagesession_id = $wpdb->get_results(
+			$wpdb->prepare(
+				"SELECT id FROM wp_bubo_insights_event_log WHERE event = %s AND pagesession = %s AND user = %s " ,
+				array( 'p' , $event['pagesession'] , $user_hash )
+			)
 		);
 		
-		ob_start();
-	 
-		$response = ob_get_clean(); 		
-		 
-		$responseJSON = json_encode($response);
+		$update = $wpdb->update(
+			'wp_bubo_insights_event_log',
+			array( 'sessionduration' => $session_time	),
+			array( 'id' => intval($pagesession_id[0]->id) ),
+			array( '%s'	)
+		);
+			
+		$response = ""; 		
 		
-		echo $responseJSON;
+		echo json_encode( esc_html( $response ) );
 	}
 	else {   
 		header("Location: ".$_SERVER["HTTP_REFERER"]);  
@@ -391,11 +402,12 @@ function bubo_insights_event_log_callback($loggedin)  {
 	}
 
 
-/* new event logging */
-function bubo_insights_eventlog_table_insert_record($row){
+// new event logging
+function bubo_insights_eventlog_table_insert_record($event_record){
+	
     global $wpdb;
 
-    $table_name = $wpdb->prefix . 'bubo_insights_event_log';
+    $table_name = 'wp_bubo_insights_event_log';
     
     $columns = array(
         'event',
@@ -416,7 +428,7 @@ function bubo_insights_eventlog_table_insert_record($row){
     );
     $insert_array = array();
     foreach($columns as $column) {
-       if(!empty($row[$column] OR $row[$column] == 0)) { $insert_array[$column] = $row[$column]; } 
+       if(!empty($event_record[$column] OR $event_record[$column] == 0)) { $insert_array[$column] = $event_record[$column]; } 
     }
 
     $wpdb->insert(
@@ -425,11 +437,11 @@ function bubo_insights_eventlog_table_insert_record($row){
     );
 }
 
-/* event log table in wp database */
+// event log table in wp database
 function bubo_insights_eventlog_table() {
     global $wpdb;
 
-    $table_name = $wpdb->prefix . 'bubo_insights_event_log';
+    $table_name = 'wp_bubo_insights_event_log';
 
     $charset_collate = $wpdb->get_charset_collate();
 
@@ -458,39 +470,39 @@ function bubo_insights_eventlog_table() {
 }
 register_activation_hook( __FILE__, 'bubo_insights_eventlog_table' );
 
-/* new visitors logging */
-function bubo_insights_visitorslog_table_insert_record($row){
+// new visitors logging
+function bubo_insights_visitorslog_table_insert_record($visitor_record){
     global $wpdb;
 
-    $table_name = $wpdb->prefix . 'bubo_insights_visitors_log';
+    $table_name = 'wp_bubo_insights_visitors_log';
 
     $wpdb->insert(
         $table_name,
         array(
-            'user'              => $row['user'],
-            'loggedin'          => $row['loggedin'],
-            'device'            => $row['device'],
-            'os'                => $row['os'],
-            'useragent'         => $row['useragent'],
-            'lang'              => $row['lang'],
-            'platform'          => $row['platform'],
-            'scale'             => $row['scale'],
-            'screenwidth'       => $row['screenwidth'],
-            'screenheight'      => $row['screenheight'],
-            'touchenabled'      => $row['touchenabled'],
-            'ua_os'             => $row['ua_os'],
-            'ua_browser'        => $row['ua_browser'],
-            'ua_lang'           => $row['ua_lang'],
-            'ua_mobilerequest'  => $row['ua_mobilerequest'],
+            'user'              => $visitor_record['user'],
+            'loggedin'          => $visitor_record['loggedin'],
+            'device'            => $visitor_record['device'],
+            'os'                => $visitor_record['os'],
+            'useragent'         => $visitor_record['useragent'],
+            'lang'              => $visitor_record['lang'],
+            'platform'          => $visitor_record['platform'],
+            'scale'             => $visitor_record['scale'],
+            'screenwidth'       => $visitor_record['screenwidth'],
+            'screenheight'      => $visitor_record['screenheight'],
+            'touchenabled'      => $visitor_record['touchenabled'],
+            'ua_os'             => $visitor_record['ua_os'],
+            'ua_browser'        => $visitor_record['ua_browser'],
+            'ua_lang'           => $visitor_record['ua_lang'],
+            'ua_mobilerequest'  => $visitor_record['ua_mobilerequest'],
         )
     );
 }
 
-/* visitors log table in wp database */
+// visitors log table in wp database
 function bubo_insights_visitorslog_table() {
     global $wpdb;
 
-    $table_name = $wpdb->prefix . 'bubo_insights_visitors_log';
+    $table_name = 'wp_bubo_insights_visitors_log';
 
     $charset_collate = $wpdb->get_charset_collate();
 
@@ -520,19 +532,19 @@ function bubo_insights_visitorslog_table() {
 }
 register_activation_hook( __FILE__, 'bubo_insights_visitorslog_table' );
 
-/* drop all tables */
+// drop all tables
 function bubo_insights_drop_all_tables() {
     global $wpdb;
 
-    $table_name = $wpdb->prefix . 'bubo_insights_event_log';
+    $table_name = 'wp_bubo_insights_event_log';
     $wpdb->query( "DROP TABLE IF EXISTS $table_name" );
     
-    $table_name = $wpdb->prefix . 'bubo_insights_visitors_log';
+    $table_name = 'wp_bubo_insights_visitors_log';
     $wpdb->query( "DROP TABLE IF EXISTS $table_name" );   
 }
 
-/* admin pages */
-/* stats page */
+// admin pages
+// stats page
 function bubo_insights_stats_page_contents() {
     ?>
 
@@ -678,111 +690,124 @@ function bubo_insights_stats_page_contents() {
             <div class="inputs" >
                 
                 <div class="who" id="who" class="textinput inputmargin" >
-                    <?php   $who_tags = array(  'Log Status'    =>  array(  'loggedin'      => array('',        'Logged in'),
-                                                                            'loggedout'     => array('checked', 'Logged out'),
-                                                                            'selected'      => 'selected',
-                                                                    ),
-                                                'Device'        =>  array(  'desktop'       => array('checked', 'Desktop'),
-                                                                            'tablet'        => array('checked', 'Tablet'),
-                                                                            'mobile'        => array('checked', 'Mobile'),
-                                                                            'otherdevice'   => array('checked', 'Other'),
-                                                                            'selected'      => ''
-                                                                    ),
-                                                'OS'            =>  array(  'apple'         => array('checked', 'Apple'),
-                                                                            'win'           => array('checked', 'Windows'),
-                                                                            'unix'          => array('checked', 'Linux'),
-                                                                            'otheros'       => array('checked', 'Other'),
-                                                                            'selected'      => ''
-                                                                    )
-                            );
-                            $hidden_trigger = array( "selected" => "", "" => "hidden" );
-                            $tab_labels = '';
-                            $panels = '';
-                            foreach(array_keys($who_tags) as $who_tags_key) {
-                                $tab_labels .= '<span id="' . substr(strtolower($who_tags_key),0,3) . 'tab" class="who_tags_label ' . $who_tags[$who_tags_key]['selected'] . '" >' . $who_tags_key . ':</span>';
-                                $panels .= '<div id="' . substr(strtolower($who_tags_key),0,3) . '_panel" class="who_tags ' . $hidden_trigger[$who_tags[$who_tags_key]['selected']] . ' filterpanel" >';
-                                foreach(array_keys($who_tags[$who_tags_key]) as $who_tag_key) {
-                                    if($who_tag_key == 'selected') continue;
-                                    $panels .= '<label class="who_tag" for="' . $who_tag_key . '">
-                                            <label class="switch" for="' . $who_tag_key . '" >
-                                                <input id="' . $who_tag_key . '" type="checkbox" ' . $who_tags[$who_tags_key][$who_tag_key][0] . ' >
-                                                <span class="slider"></span>
-                                            </label>
-                                            ' . $who_tags[$who_tags_key][$who_tag_key][1] . '
-                                          </label>';
-                                }
-                                $panels .= '</div>';
-                            }
-                            echo '<div class="who_tab" >' . $tab_labels . '</div>';
-                            echo $panels;
+                    <?php
+						$who_tags = array(  'Log Status'    =>  array(  'loggedin'      => array('',        'Logged in'),
+																		'loggedout'     => array('checked', 'Logged out'),
+																		'selected'      => 'selected',
+																),
+											'Device'        =>  array(  'desktop'       => array('checked', 'Desktop'),
+																		'tablet'        => array('checked', 'Tablet'),
+																		'mobile'        => array('checked', 'Mobile'),
+																		'otherdevice'   => array('checked', 'Other'),
+																		'selected'      => ''
+																),
+											'OS'            =>  array(  'apple'         => array('checked', 'Apple'),
+																		'win'           => array('checked', 'Windows'),
+																		'unix'          => array('checked', 'Linux'),
+																		'otheros'       => array('checked', 'Other'),
+																		'selected'      => ''
+																)
+						);
+						$hidden_trigger = array( "selected" => "", "" => "hidden" );
+						$tab_labels = '';
+						$panels = '';
+						echo '<div class="who_tab" >';
+						foreach(array_keys($who_tags) as $who_tags_key) {
+							echo '<span id="' . esc_attr( substr(strtolower($who_tags_key),0,3) ) . 'tab" class="who_tags_label ' . esc_attr( $who_tags[$who_tags_key]['selected'] ) . '" >' . esc_html( $who_tags_key ) . ':</span>';
+						}
+						echo '</div>';
+						foreach(array_keys($who_tags) as $who_tags_key) {
+							echo '<div id="' . esc_attr( substr(strtolower($who_tags_key),0,3) ) . '_panel" class="who_tags ' . esc_attr( $hidden_trigger[$who_tags[$who_tags_key]['selected']] ) . ' filterpanel" >';
+							foreach(array_keys($who_tags[$who_tags_key]) as $who_tag_key) {
+								if($who_tag_key == 'selected') continue;
+								echo '<label class="who_tag" for="' . esc_attr( $who_tag_key ) . '">
+										<label class="switch" for="' . esc_attr( $who_tag_key ) . '" >
+											<input id="' . esc_attr( $who_tag_key ) . '" type="checkbox" ' . esc_attr( $who_tags[$who_tags_key][$who_tag_key][0] ) . ' >
+											<span class="slider"></span>
+										</label>
+										' . esc_html( $who_tags[$who_tags_key][$who_tag_key][1] ) . '
+									  </label>';
+							}
+							echo '</div>';
+						}
                     ?>
                 </div>
     
                 <div class="when" id="when" >
                     <span id="mode" style="display:none;">daily</span>
-                    <?php date_default_timezone_set(wp_timezone_string()); ?>
-                    <?php   $when_modes =   array(  'Hourly'    =>  array(  'custom'        => array( 'hourly', 'hour', 'datetime-local', date('Y-m-d\TH:\0\0', time()) ),
-                                                                            'selected'      => ''
-                                                                    ),
-                                                    'Daily'     =>  array(  'custom'        => array( 'daily', 'day', 'date', date('Y-m-d', time()) ),
-                                                                            'selected'      => 'selected'
-                                                                    ),
-                                                    'Weekly'    =>  array(  'custom'        => array( 'weekly', 'week', 'week', date('Y-\WW', time()) ),
-                                                                            'selected'      => ''
-                                                                    ),
-                                                    'Monthly'   =>  array(  'custom'        => array( 'monthly', 'month', 'month', date('Y-m', time()) ),
-                                                                            'selected'      => ''
-                                                                    ),
-                                                    'Yearly'    =>  array(  'custom'        => array( 'yearly', 'year', 'number', date('Y', time()) ),
-                                                                            'selected'      => ''
-                                                                    )
-                            );
-                            $hidden_trigger = array( "selected" => "", "" => "hidden" );
-                            $tab_labels = '';
-                            $panels = '';
-                            foreach(array_keys($when_modes) as $when_modes_key) {
-                                $when_mode_keys = array_keys($when_modes[$when_modes_key]);
-                                $tab_labels .= '<span id="' . $when_modes[$when_modes_key]['custom'][0] . 'tab" class="whenmode_label ' . $when_modes[$when_modes_key]['selected'] . '" >' . $when_modes_key . '</span>';
-                                $panels .= '<div id="' . $when_modes[$when_modes_key]['custom'][0] . '_panel" class="whenmode ' . $hidden_trigger[$when_modes[$when_modes_key]['selected']] . ' filterpanel" >
-                                                <div class="" >
-                                                    <label class="" for="' . $when_modes[$when_modes_key]['custom'][0] . '">This ' . $when_modes[$when_modes_key]['custom'][1] . ':</label>
-                                                    <input  type="' . $when_modes[$when_modes_key]['custom'][2] . '"
-                                                            id="' . $when_modes[$when_modes_key]['custom'][0] . '"
-                                                            value="' . $when_modes[$when_modes_key]['custom'][3] . '"
-                                                    />
-                                                </div>
-                                            </div>';
-                            }
-                            echo '<div class="when_tab" >' . $tab_labels . '</div>';
-                            echo $panels;
+                    <?php
+						$user_tz = new DateTimeZone(wp_timezone_string());
+						$user = new DateTime('now', $user_tz);
+						$user_time = time()+$user->getOffset();
+  
+						$when_modes =   array(  'Hourly'    =>  array(  'custom'        => array( 'hourly', 'hour', 'datetime-local', date('Y-m-d\TH:\0\0', $user_time) ),
+																		'selected'      => ''
+																),
+												'Daily'     =>  array(  'custom'        => array( 'daily', 'day', 'date', date('Y-m-d', $user_time) ),
+																		'selected'      => 'selected'
+																),
+												'Weekly'    =>  array(  'custom'        => array( 'weekly', 'week', 'week', date('Y-\WW', $user_time) ),
+																		'selected'      => ''
+																),
+												'Monthly'   =>  array(  'custom'        => array( 'monthly', 'month', 'month', date('Y-m', $user_time) ),
+																		'selected'      => ''
+																),
+												'Yearly'    =>  array(  'custom'        => array( 'yearly', 'year', 'number', date('Y', $user_time) ),
+																		'selected'      => ''
+																)
+						);
+						$hidden_trigger = array( "selected" => "", "" => "hidden" );
+						$tab_labels = '';
+						$panels = '';
+						echo '<div class="when_tab" >';
+						foreach(array_keys($when_modes) as $when_modes_key) {
+							$when_mode_keys = array_keys($when_modes[$when_modes_key]);
+							echo '<span id="' . esc_attr( $when_modes[$when_modes_key]['custom'][0] ) . 'tab" class="whenmode_label ' . esc_attr( $when_modes[$when_modes_key]['selected'] ) . '" >' . esc_html( $when_modes_key ) . '</span>';
+						}
+						echo '</div>';
+						foreach(array_keys($when_modes) as $when_modes_key) {
+							$when_mode_keys = array_keys($when_modes[$when_modes_key]);
+							echo '<div id="' . esc_attr( $when_modes[$when_modes_key]['custom'][0] ) . '_panel" class="whenmode ' . esc_attr( $hidden_trigger[$when_modes[$when_modes_key]['selected']] ) . ' filterpanel" >
+											<div class="" >
+												<label class="" for="' . esc_attr( $when_modes[$when_modes_key]['custom'][0] ) . '">This ' . esc_html( $when_modes[$when_modes_key]['custom'][1] ) . ':</label>
+												<input  type="' . esc_attr( $when_modes[$when_modes_key]['custom'][2] ) . '"
+														id="' . esc_attr( $when_modes[$when_modes_key]['custom'][0] ) . '"
+														value="' . esc_attr( $when_modes[$when_modes_key]['custom'][3] ) . '"
+												/>
+											</div>
+										</div>';
+						}
                     ?>
                 </div>
     
                 
                 <div id="where" class="where" >
-                    <?php   $where_input = array(   'page'  =>  array(  'class' => 'session',            'show' => '',        'label' => 'Page',        'selected' => 'selected' ),
-                                                    'from'  =>  array(  'class' => 'referrers',          'show' => 'hidden',  'label' => 'Referrer',    'selected' => '' ),
-                                                    'goto'  =>  array(  'class' => 'externalclicks',     'show' => 'hidden',  'label' => 'Click',       'selected' => '' )
-                            );
-                            $tab_labels = '';
-                            $panels = '';
-                            foreach(array_keys($where_input) as $where_input_key) {
-                                $tab_labels .= '<span id="' . $where_input_key . 'tab" class="whereinput_label ' . $where_input[$where_input_key]['class'] . ' ' . $where_input[$where_input_key]['selected'] . '" for="' . $where_input_key . '">' . $where_input[$where_input_key]['label'] . '</span>';
-                                $panels .= '<div id="' . $where_input_key . 'panel" class="' . $where_input[$where_input_key]['class'] . ' ' . $where_input[$where_input_key]['show'] . ' whereinput filterpanel" >
-                                            
-                                            <select id="' . $where_input_key . 'mode" >
-                                                <option value="islike" >Contains:</option>
-                                                <option value="notlike" >Not contains:</option>
-                                                <option value="isequal" >Exactly this:</option>
-                                                <option value="notequal" >Exclude this:</option>
-                                            </select>
-                                            <input id="' . $where_input_key . '" type="text" placeholder="e.g. https://www..." >
-                                            <input id="' . $where_input_key . 'clear" class="where_clear" value="Clear" type="submit" >
-                                          </div>
-                                ';
-                            }
-                            echo '<div class="where_tab" >' . $tab_labels . '</div>';
-                            echo $panels;
+                    <?php   
+						$where_input = array(   'page'  =>  array(  'class' => 'session',            'show' => '',        'label' => 'Page',        'selected' => 'selected' ),
+												'from'  =>  array(  'class' => 'referrers',          'show' => 'hidden',  'label' => 'Referrer',    'selected' => '' ),
+												'goto'  =>  array(  'class' => 'externalclicks',     'show' => 'hidden',  'label' => 'Click',       'selected' => '' )
+						);
+						$tab_labels = '';
+						$panels = '';
+						echo '<div class="where_tab" >';
+						foreach(array_keys($where_input) as $where_input_key) {
+							echo '<span id="' . esc_attr( $where_input_key ) . 'tab" class="whereinput_label ' . esc_attr( $where_input[$where_input_key]['class'] ) . ' ' . esc_attr( $where_input[$where_input_key]['selected'] ) . '" for="' . esc_attr( $where_input_key ) . '">' . esc_attr( $where_input[$where_input_key]['label'] ) . '</span>';
+						}
+						echo '</div>';
+						foreach(array_keys($where_input) as $where_input_key) {
+							echo '<div id="' . esc_attr( $where_input_key ) . 'panel" class="' . esc_attr( $where_input[$where_input_key]['class'] ) . ' ' . esc_attr( $where_input[$where_input_key]['show'] ) . ' whereinput filterpanel" >
+										
+										<select id="' . esc_attr( $where_input_key ) . 'mode" >
+											<option value="islike" >Contains:</option>
+											<option value="notlike" >Not contains:</option>
+											<option value="isequal" >Exactly this:</option>
+											<option value="notequal" >Exclude this:</option>
+										</select>
+										<input id="' . esc_attr( $where_input_key ) . '" type="text" placeholder="e.g. https://www..." >
+										<input id="' . esc_attr( $where_input_key ) . 'clear" class="where_clear" value="Clear" type="submit" >
+									  </div>
+							';
+						}
                     ?>
                 </div>
                 
@@ -796,56 +821,71 @@ function bubo_insights_stats_page_contents() {
             
             <span id="loading" >LOADING...</span>
         
-            <?php   $metrics = array(   'users'             => array( 'legend' => true, 'label' => 'Users' ),
-                                        'session'           => array( 'legend' => true, 'label' => 'Visits' ),
-                                        'externalclicks'    => array( 'legend' => true, 'label' => 'Clicks' ),
-                                        'referrers'         => array( 'legend' => false, 'label' => 'Referrers' )
-                    );
+            <?php   
+				$metrics = array(
+					'users'             => array( 'legend' => true, 'label' => 'Users' ),
+					'session'           => array( 'legend' => true, 'label' => 'Visits' ),
+					'externalclicks'    => array( 'legend' => true, 'label' => 'Clicks' ),
+					'referrers'         => array( 'legend' => false, 'label' => 'Referrers' )
+				);
             ?>
     
             <div class="statslegend" >
-                <?php   foreach(array_keys($metrics) as $metric_key) {
-                            if( $metrics[$metric_key]['legend'] ) {
-                                echo '<div class="total ' . $metric_key . '" >' . $metrics[$metric_key]['label'] . '<br>
-                                        <span class="totalcounter ' . $metric_key . '" >?</span>
-                                      </div>';
-                            }
-                        }
+                <?php   
+					foreach(array_keys($metrics) as $metric_key) {
+						if( $metrics[$metric_key]['legend'] ) {
+							echo '<div class="total ' . esc_attr( $metric_key ) . '" >' . esc_html( $metrics[$metric_key]['label'] ) . '<br>'
+								.'	<span class="totalcounter ' . esc_attr( $metric_key ) . '" >?</span>'
+								.'</div>';
+						}
+					}
                 ?>
             </div>
 
             <div id="stats" ></div>
+			<div id="chart">
+				<div id="x-axis" ></div>
+				<div id="y-axis" ></div>				
+				<div id="other" ></div>
+				<div id="bars" ></div>
+				<div id="polylines" ></div>
+				<div id="counters" ></div>
+			</div>
             
             <div class="multimultimultibar" >
-                <?php   $multibar_layout = array(   'counters' => array(    'total' => 'Total', 'avg' => 'Avg', 'min' => 'Min', 'max' => 'Max' ),
-                        );
+                <?php   
+					$multibar_layout = array(
+						'counters' => array(
+							'total' => 'Total', 'avg' => 'Avg', 'min' => 'Min', 'max' => 'Max'
+						),
+					);
                 
-                        foreach(array_keys($metrics) as $metric_key) {
-                            echo '<div class="multimultibar ' . $metric_key . '" >';
-                                echo '<h2>' . $metrics[$metric_key]['label'] . '</h2>';
-                                echo '<div class="multimultibarcounters" >';
-                                    foreach(array_keys($multibar_layout['counters']) as $counter_key) {
-                                        echo '<div class="totalcounter ' . $counter_key . '" >' . $multibar_layout['counters'][$counter_key]  . ': <span class="metric' . $counter_key . '" >?</span></div>';
-                                    }
-                                echo '</div>';
-                                echo '<div class="multibars" >';
-                                echo '<div class="multibar  ' . $metric_key . '" >
-                                            <div class="multibarbar ' . $metric_key . '" style="width:calc(100% - 4px);"></div>
-                                                <span class="" data-url="" >[?]</span>
-                                            <span class="bartext" >???</span>
-                                            <b><a href="" target="_blank" >[➚]</a></b>
-                                     </div>';
-                                echo '</div>'; 
-                                echo '<button class="showall" data-class="' . $metric_key . '" >+ Show more +</button>';
-                            echo '</div>';
-                        }
+					foreach(array_keys($metrics) as $metric_key) {
+						echo '<div class="multimultibar ' . esc_attr( $metric_key ) . '" >';
+							echo '<h2>' . esc_html( $metrics[$metric_key]['label'] ) . '</h2>';
+							echo '<div class="multimultibarcounters" >';
+								foreach(array_keys($multibar_layout['counters']) as $counter_key) {
+									echo '<div class="totalcounter ' . esc_attr( $counter_key ) . '" >' . esc_html( $multibar_layout['counters'][$counter_key] )  . ': <span class="metric' . esc_attr( $counter_key ) . '" >?</span></div>';
+								}
+							echo '</div>';
+							echo '<div class="multibars" >';
+							echo '<div class="multibar  ' . esc_attr( $metric_key ) . '" >'
+								.'		<div class="multibarbar ' . esc_attr( $metric_key ) . '" style="width:calc(100% - 4px);"></div>'
+								.'			<span class="" data-url="" >[?]</span>'
+								.'		<span class="bartext" >???</span>'
+								.'		<b><a href="" target="_blank" >[➚]</a></b>'
+								.'</div>';
+							echo '</div>'; 
+							echo '<button class="showall" data-class="' . esc_attr( $metric_key ) . '" >+ Show more +</button>';
+						echo '</div>';
+					}
                 ?>
             </div>
             
         </section>
 
         <script>
-            var myAjax = {"ajaxurl":"<?php echo get_site_url(); ?>/wp-admin/admin-ajax.php"};
+            var myAjax = {"ajaxurl":"<?php echo esc_url( get_site_url() ); ?>/wp-admin/admin-ajax.php"};
             whofilter = jQuery("#who");
             whenfilter = jQuery("#when");
             wherefilter = jQuery("#where");
@@ -856,7 +896,7 @@ function bubo_insights_stats_page_contents() {
                 jQuery("#stats").addClass("loadingstats");
                 var mode = jQuery("#mode").text();
                 var action = "bubo_insights_stats_query";
-                var adminpage = "<?php echo $_GET["page"]; ?>";
+                var adminpage = "<?php echo esc_attr( $_GET["page"] ); ?>";
                 var who = '';
                 who = {
                     loggedin: jQuery("#loggedin")[0].checked,
@@ -894,14 +934,26 @@ function bubo_insights_stats_page_contents() {
                     data : {action: action, who: who, when: when, where: where, adminpage: adminpage },
                     success: function(response) {
                         jQuery("#stats").removeClass("loadingstats");
-                        jQuery("#stats").html(response.chart);
+						jQuery("#other").html(response.foundnothing);
+						jQuery("#x-axis").html(response.xunit);
+						jQuery("#y-axis").html(response.yunit);
+						jQuery("#polylines").html(response.polylines);
+						jQuery("#counters").html(response.counters);
+						jQuery("#bars").html(response.bars);
                         Object.entries(response.legend).forEach( ([key, value]) => {
                             jQuery(".totalcounter."+key).html(value);
                         });
-                        Object.entries(response.multibarcounters).forEach( ([key, value]) => {
-                            Object.entries(value).forEach( ([subkey, subvalue]) => {
-                                jQuery(".multimultibar."+key+" .metric"+subkey).html(subvalue);
-                            });
+						Object.entries(response.multibarcounterstotal).forEach( ([key, value]) => {
+                            jQuery(".multimultibar."+key+" .metrictotal").html(value);
+                        });
+						Object.entries(response.multibarcountersavg).forEach( ([key, value]) => {
+                            jQuery(".multimultibar."+key+" .metricavg").html(value);
+                        });
+						Object.entries(response.multibarcountersmin).forEach( ([key, value]) => {
+                            jQuery(".multimultibar."+key+" .metricmin").html(value);
+                        });
+						Object.entries(response.multibarcountersmax).forEach( ([key, value]) => {
+                            jQuery(".multimultibar."+key+" .metricmax").html(value);
                         });
                         Object.entries(response.multibars).forEach( ([key, value]) => {
                             jQuery(".multimultibar."+key+" .multibars").html(value);
@@ -1050,20 +1102,30 @@ function bubo_insights_stats_page_contents() {
     </main>
     
     <?php
-
 }
 
-/* stats page AJAX */
+// stats page AJAX
 add_action('wp_ajax_bubo_insights_stats_query', 'bubo_insights_stats_query_callback');
 
 function bubo_insights_stats_query_callback() {
   
     if(!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest') {
 		
-		$adminpage = $_REQUEST['adminpage'];
-		$who = $_REQUEST['who'];
+		$who = array();
+		foreach( array_keys($_REQUEST['who']) as $who_key){
+			$who_index = sanitize_text_field( $who_key );
+			$who[$who_index] = sanitize_text_field( $_REQUEST['who'][$who_key] );
+		}
         $whenx = $_REQUEST['when'];
+		foreach( array_keys($_REQUEST['when']) as $when_key){
+			$when_index = sanitize_text_field( $when_key );
+			$whenx[$when_index] = sanitize_text_field( $_REQUEST['when'][$when_key] );
+		}
 		$where = $_REQUEST['where'];
+		foreach( array_keys($_REQUEST['where']) as $where_key){
+			$where_index = sanitize_text_field( $where_key );
+			$where[$where_index] = sanitize_text_field( $_REQUEST['where'][$where_key] );
+		}
 		
 		if($whenx['mode'] == 'hourly'){
 		    $target_year = substr($whenx['hour'], 0, 4);
@@ -1109,59 +1171,66 @@ function bubo_insights_stats_query_callback() {
 	        'month' => $target_month,
 	        'year' => $target_year
 	    );
-        
+
         $block = bubo_insights_stats_page_dynamic_contents($who, $when, $where);
 		
-		$response = json_encode($block);
+		$allowed_html = array( 
+			'div' => array(
+				'id' => true,
+				'class' => true,
+				'title' => true,
+				'style' => true
+			),
+			'span' => array(),
+			'svg'  => array(
+				'class' 	  => true,
+				'xmlns'       => true,
+				'fill'        => true,
+				'viewbox'     => true,
+				'role'        => true,
+				'aria-hidden' => true,
+				'focusable'   => true,
+				'height'      => true,
+				'width'       => true,
+				'preserveaspectratio' => true
+			),
+			'path' => array(
+				'class' => true,
+				'd'    => true,
+				'fill' => true,
+				'vector-effect' => true
+			)
+		);
 		
-      	echo $response;
+      	echo json_encode(
+			array(
+				'legend' => array_map( 'esc_attr', $block['legend'] ),				
+				'foundnothing' => wp_kses( $block['foundnothing'] , $allowed_html ),			
+				'xunit' => wp_kses( $block['xunit'] , $allowed_html ),
+				'yunit' => wp_kses( $block['yunit'] , $allowed_html ),
+				'polylines' => wp_kses( $block['polylines'] , $allowed_html ),
+				'counters' => wp_kses( $block['counters'] , $allowed_html ),
+				'bars' => wp_kses( $block['bars'] , $allowed_html ),
+				'multibarcounterstotal' => array_map( 'esc_attr', $block['multibarcounterstotal'] ),
+				'multibarcountersavg' => array_map( 'esc_attr', $block['multibarcountersavg'] ),
+				'multibarcountersmin' => array_map( 'esc_attr', $block['multibarcountersmin'] ),
+				'multibarcountersmax' => array_map( 'esc_attr', $block['multibarcountersmax'] ),
+				'multibars' => array_map( 'wp_kses_post', $block['multibars'] )
+			)
+		);
+		
    	}
-   	else {   
-      	header("Location: ".$_SERVER["HTTP_REFERER"]); 
+   	else {
+		$header_url = sanitize_url($_SERVER["HTTP_REFERER"]);
+      	header("Location: ".$header_url); 
    	}
   
   	die();
 }
-/* ajax */
+
+// stats page dynamic content
 
 function bubo_insights_stats_page_dynamic_contents($who, $when, $where) {
-
-    $who_query = " AND ( (false) "; 
-    if($who['loggedin'] == 'true' ) $who_query .= "OR loggedin = 1 "; 
-    if($who['loggedout'] == 'true' ) $who_query .= "OR loggedin != 1 OR loggedin IS NULL ";
-    $who_query .= " ) ";
-    $who_query .= " AND ( (false) "; 
-    if($who['desktop'] == 'true' ) $who_query .= "OR device = 'd' ";
-    if($who['tablet'] == 'true' ) $who_query .= "OR device = 't' ";
-    if($who['mobile'] == 'true' ) $who_query .= "OR device = 'm' ";
-    if($who['otherdevice'] == 'true' ) $who_query .= "OR device = '?' OR device IS NULL ";
-    $who_query .= " ) ";
-    $who_query .= " AND ( (false) ";
-    if($who['apple'] == 'true' ) $who_query .= "OR os = 'a' ";
-    if($who['win'] == 'true' ) $who_query .= "OR os = 'w' ";
-    if($who['unix'] == 'true' ) $who_query .= "OR os = 'u' ";
-    if($who['otheros'] == 'true' ) $who_query .= "OR os = '?' OR os IS NULL "; 
-    $who_query .= " ) ";
-    $where_query = " AND ( (true) ";
-    if($where['goto'] != '' ){
-        if($where['gotomode'] == 'islike' ) $where_query .= " AND link LIKE '%" . $where['goto'] . "%' ";
-        if($where['gotomode'] == 'notlike' ) $where_query .= " AND link NOT LIKE '%" . $where['goto'] . "%' ";
-        if($where['gotomode'] == 'isequal' ) $where_query .= " AND link = '" . $where['goto'] . "' ";
-        if($where['gotomode'] == 'notequal' ) $where_query .= " AND link <> '" . $where['goto'] . "' ";
-    }
-    if($where['page'] != '' ){
-        if($where['pagemode'] == 'islike' ) $where_query .= " AND origin LIKE '%" . $where['page'] . "%' ";
-        if($where['pagemode'] == 'notlike' ) $where_query .= " AND origin NOT LIKE '%" . $where['page'] . "%' ";
-        if($where['pagemode'] == 'isequal' ) $where_query .= " AND origin = '" . $where['page'] . "' ";
-        if($where['pagemode'] == 'notequal' ) $where_query .= " AND origin <> '" . $where['page'] . "' ";
-    }
-    if($where['from'] != '' ){    
-        if($where['frommode'] == 'islike' ) $where_query .= " AND referrer LIKE '%" . $where['from'] . "%' ";
-        if($where['frommode'] == 'notlike' ) $where_query .= " AND referrer NOT LIKE '%" . $where['from'] . "%' ";
-        if($where['frommode'] == 'isequal' ) $where_query .= " AND referrer = '" . $where['from'] . "' ";
-        if($where['frommode'] == 'notequal' ) $where_query .= " AND referrer <> '" . $where['from'] . "' ";
-    }
-    $where_query .= " ) ";
 
     $timezone_correction = time() - current_time('U');
     $time = strtotime('tomorrow, midnight') + $timezone_correction;
@@ -1231,11 +1300,7 @@ function bubo_insights_stats_page_dynamic_contents($who, $when, $where) {
         $bars[$b]['is_in_the_future'] = (( $time - $bar_slot_time - ($bar_slot_time * $b) ) > $now );
     }
     $bars[$limit - 1]['curve'] = 'L';
-    
-    global $wpdb;
-    $table_name = $wpdb->prefix . 'bubo_insights_event_log';
-    $site_host = $_SERVER['SERVER_NAME'];
-    
+
     $metrics = array(
         'users'  => array(
             'label' => 'Users',
@@ -1322,7 +1387,51 @@ function bubo_insights_stats_page_dynamic_contents($who, $when, $where) {
             'multibar_row_click' => 'gotox',
         ),
     );
-    
+	
+	
+	global $wpdb;
+
+	//what query external variables
+	$site_url = sanitize_url($_SERVER['SERVER_NAME']);
+	$site_domain = str_replace( 'http://' , '' , $site_url  );
+	$site_host = '%' . $wpdb->esc_like( esc_sql( $site_domain ) ) . '%';
+
+	//who query external variables
+	$loggedinswitch = -1;
+	$loggedoutswitch = -1;
+	if($who['loggedin'] == 'true' ) $loggedinswitch = 1;
+	if($who['loggedout'] == 'true' ) $loggedoutswitch = 0;
+	$ddeviceswitch = "-";
+	$tdeviceswitch = "-";
+	$mdeviceswitch = "-";
+	$odeviceswitch = "-";
+	if($who['desktop'] == 'true' ) $ddeviceswitch = "d";
+	if($who['tablet'] == 'true' ) $tdeviceswitch = "t";
+	if($who['mobile'] == 'true' ) $mdeviceswitch = "m";
+	if($who['otherdevice'] == 'true' ) $odeviceswitch = "?";
+	$aosswitch = "-";
+	$wosswitch = "-";
+	$uosswitch = "-";
+	$oosswitch = "-";
+	if($who['apple'] == 'true' ) $aosswitch = "a";
+	if($who['win'] == 'true' ) $wosswitch = "w";
+	if($who['unix'] == 'true' ) $uosswitch = "u";
+	if($who['otheros'] == 'true' ) $oosswitch = "?";
+	
+	//where queries external variables
+	$link = '%' . $wpdb->esc_like( esc_sql( $where['goto'] ) ) . '%';
+	$linkswitch = 0;
+	if( $link == "%%" ) $linkswitch = 1;
+
+	$origin = '%' . $wpdb->esc_like( esc_sql( $where['page'] ) ) . '%';
+	$originswitch = 0;
+	if( $origin == "%%" ) $originswitch = 1;
+
+	$referrer = '%' . $wpdb->esc_like( esc_sql( $where['from'] ) ) . '%';
+	$referrerswitch = 0;
+	if( $referrer == "%%" ) $referrerswitch = 1;
+
+	//timespans initialization
     $weekday = 0;
     foreach($bars as $bar) {
         $maxtime = $time - ($bar['slottime'] * $bar['index']);
@@ -1338,17 +1447,111 @@ function bubo_insights_stats_page_dynamic_contents($who, $when, $where) {
         }
         foreach($metrics as $metric) {
             if($metric['condition']) {
-                $query_text = 'SELECT ' . $metric['select_query'] . ' as count FROM ' . $metric['from_query'] . ' WHERE (true) ' . $metric['what_query'] . $who_query . $where_query . $when_query;
-                $query = $wpdb->get_results($query_text);
-                $metrics[$metric['class']]['bars'][$bar['index']] = intval($query[0]->count);
-                $metrics[$metric['class']]['total'] += intval($query[0]->count);
-                if($bar['is_in_the_future'] == false) {
-                    if(!empty($metrics[$metric['class']]['polyline'])) {
-                        $metrics[$metric['class']]['polyline'] .= ' '                   . $limit - 0.5  - $bar['index'] . ',' . $metrics[$metric['class']]['bars'][$bar['index']];
-                    }
-                    $metrics[$metric['class']]['polyline'] .= ' '                       . $limit - 1    - $bar['index'] . ',' . $metrics[$metric['class']]['bars'][$bar['index']]
-                                                            . ' ' . $bar['curve'] . ' ' . $limit - 1.5  - $bar['index'] . ',' . $metrics[$metric['class']]['bars'][$bar['index']] . ' ';
-                }
+									
+				if( $metric['class'] == 'users' ){
+					$query_text_prepared = $wpdb->prepare(
+						"SELECT count(DISTINCT user) as count FROM wp_bubo_insights_event_log
+						 WHERE ( loggedin IS NULL OR loggedin = %d OR loggedin = %d )
+						 AND ( device IS NULL OR device = %s OR device = %s OR device = %s OR device = %s )
+						 AND ( os IS NULL OR os = %s OR os = %s OR os = %s OR os = %s )
+						 AND ( 1 = %d OR origin LIKE %s ) 
+						 AND ( 1 = %d OR link LIKE %s )
+						 AND ( 1 = %d OR referrer LIKE %s )
+						 AND ( eventtime >= %d AND eventtime < %d )
+						 ",
+						array( 
+							$loggedinswitch , $loggedoutswitch ,
+							$ddeviceswitch , $tdeviceswitch , $mdeviceswitch , $odeviceswitch ,
+							$aosswitch , $wosswitch , $uosswitch , $oosswitch ,
+							$originswitch , $origin ,
+							$linkswitch , $link ,
+							$referrerswitch , $referrer ,
+							$bar['mintime'] , $bar['maxtime']
+						)
+					);
+				}
+				else if( $metric['class'] == 'session' ){
+					$query_text_prepared = $wpdb->prepare(
+						"SELECT count(DISTINCT pagesession) as count FROM wp_bubo_insights_event_log
+						 WHERE ( loggedin IS NULL OR loggedin = %d OR loggedin = %d )
+						 AND ( device IS NULL OR device = %s OR device = %s OR device = %s OR device = %s )
+						 AND ( os IS NULL OR os = %s OR os = %s OR os = %s OR os = %s )
+						 AND ( 1 = %d OR origin LIKE %s ) 
+						 AND ( 1 = %d OR link LIKE %s )
+						 AND ( 1 = %d OR referrer LIKE %s )
+						 AND ( eventtime >= %d AND eventtime < %d )
+						 ",
+						array( 
+							$loggedinswitch , $loggedoutswitch ,
+							$ddeviceswitch , $tdeviceswitch , $mdeviceswitch , $odeviceswitch ,
+							$aosswitch , $wosswitch , $uosswitch , $oosswitch ,
+							$originswitch , $origin ,
+							$linkswitch , $link ,
+							$referrerswitch , $referrer ,
+							$bar['mintime'] , $bar['maxtime']
+						)
+					);
+				}
+				else if( $metric['class'] == 'referrers' ){
+					$query_text_prepared = $wpdb->prepare(
+						"SELECT count(DISTINCT pagesession) as count FROM wp_bubo_insights_event_log
+						 WHERE ( loggedin IS NULL OR loggedin = %d OR loggedin = %d )
+						 AND ( device IS NULL OR device = %s OR device = %s OR device = %s OR device = %s )
+						 AND ( os IS NULL OR os = %s OR os = %s OR os = %s OR os = %s )
+						 AND ( 1 = %d OR origin LIKE %s ) 
+						 AND ( 1 = %d OR link LIKE %s )
+						 AND ( 1 = %d OR referrer LIKE %s )
+						 AND ( eventtime >= %d AND eventtime < %d )
+						 AND referrer <> %s AND referrer NOT LIKE %s
+						 ",
+						array( 
+							$loggedinswitch , $loggedoutswitch ,
+							$ddeviceswitch , $tdeviceswitch , $mdeviceswitch , $odeviceswitch ,
+							$aosswitch , $wosswitch , $uosswitch , $oosswitch ,
+							$originswitch , $origin ,
+							$linkswitch , $link ,
+							$referrerswitch , $referrer ,
+							$bar['mintime'] , $bar['maxtime'] ,
+							'' , $site_host
+						)
+					);
+				}
+				else if( $metric['class'] == 'externalclicks' ){
+					$query_text_prepared = $wpdb->prepare(
+						"SELECT count(*) as count FROM wp_bubo_insights_event_log
+						 WHERE ( loggedin IS NULL OR loggedin = %d OR loggedin = %d )
+						 AND ( device IS NULL OR device = %s OR device = %s OR device = %s OR device = %s )
+						 AND ( os IS NULL OR os = %s OR os = %s OR os = %s OR os = %s )
+						 AND ( 1 = %d OR origin LIKE %s ) 
+						 AND ( 1 = %d OR link LIKE %s )
+						 AND ( 1 = %d OR referrer LIKE %s )
+						 AND ( eventtime >= %d AND eventtime < %d )
+						 AND link <> %s AND link NOT LIKE %s AND eventtype = %s
+						 ",
+						array( 
+							$loggedinswitch , $loggedoutswitch ,
+							$ddeviceswitch , $tdeviceswitch , $mdeviceswitch , $odeviceswitch ,
+							$aosswitch , $wosswitch , $uosswitch , $oosswitch ,
+							$originswitch , $origin ,
+							$linkswitch , $link ,
+							$referrerswitch , $referrer ,
+							$bar['mintime'] , $bar['maxtime'] ,
+							'' , $site_host , 'click'
+						)
+					);
+				}
+
+				$query = $wpdb->get_results($query_text_prepared);
+				$metrics[$metric['class']]['bars'][$bar['index']] = intval($query[0]->count);
+				$metrics[$metric['class']]['total'] += intval($query[0]->count);
+				if($bar['is_in_the_future'] == false) {
+					if(!empty($metrics[$metric['class']]['polyline'])) {
+						$metrics[$metric['class']]['polyline'] .= ' '                   . $limit - 0.5  - $bar['index'] . ',' . $metrics[$metric['class']]['bars'][$bar['index']];
+					}
+					$metrics[$metric['class']]['polyline'] .= ' '                       . $limit - 1    - $bar['index'] . ',' . $metrics[$metric['class']]['bars'][$bar['index']]
+															. ' ' . $bar['curve'] . ' ' . $limit - 1.5  - $bar['index'] . ',' . $metrics[$metric['class']]['bars'][$bar['index']] . ' ';
+				}
+				
             }   
         }
     }
@@ -1377,158 +1580,274 @@ function bubo_insights_stats_page_dynamic_contents($who, $when, $where) {
     $when_query = ' AND eventtime >= ' . $mintime . ' AND eventtime < ' . $maxtime . ' ';
     foreach($metrics as $metric) {
         if($metric['condition']) {
-            $query_text = 'SELECT ' . $metric['multibar_select_query'] . ' FROM '. $table_name . ' WHERE (true) ' . $metric['what_query'] . $who_query . $where_query . $when_query . $metric['multibar_order_query'] ;
-            $query = $wpdb->get_results($query_text);
+
+			if( $metric['class'] == 'users' ){
+				$query_text_prepared = $wpdb->prepare(
+					"SELECT count(DISTINCT user) as count , device as row
+					 FROM wp_bubo_insights_event_log
+					 WHERE ( loggedin IS NULL OR loggedin = %d OR loggedin = %d )
+					 AND ( device IS NULL OR device = %s OR device = %s OR device = %s OR device = %s )
+					 AND ( os IS NULL OR os = %s OR os = %s OR os = %s OR os = %s )
+					 AND ( 1 = %d OR origin LIKE %s ) 
+					 AND ( 1 = %d OR link LIKE %s )
+					 AND ( 1 = %d OR referrer LIKE %s )
+					 AND ( eventtime >= %d AND eventtime < %d )
+					 GROUP BY device
+					 ORDER BY count(DISTINCT user) DESC
+					 ",
+					array( 
+						$loggedinswitch , $loggedoutswitch ,
+						$ddeviceswitch , $tdeviceswitch , $mdeviceswitch , $odeviceswitch ,
+						$aosswitch , $wosswitch , $uosswitch , $oosswitch ,
+						$originswitch , $origin ,
+						$linkswitch , $link ,
+						$referrerswitch , $referrer ,
+						$mintime , $maxtime
+					)
+				);
+			}
+			else if( $metric['class'] == 'session' ){
+				$query_text_prepared = $wpdb->prepare(
+					"SELECT count(DISTINCT pagesession) as count , origin as row
+					 FROM wp_bubo_insights_event_log
+					 WHERE ( loggedin IS NULL OR loggedin = %d OR loggedin = %d )
+					 AND ( device IS NULL OR device = %s OR device = %s OR device = %s OR device = %s )
+					 AND ( os IS NULL OR os = %s OR os = %s OR os = %s OR os = %s )
+					 AND ( 1 = %d OR origin LIKE %s ) 
+					 AND ( 1 = %d OR link LIKE %s )
+					 AND ( 1 = %d OR referrer LIKE %s )
+					 AND ( eventtime >= %d AND eventtime < %d )
+					 GROUP BY origin
+					 ORDER BY count(DISTINCT pagesession) DESC
+					 ",
+					array( 
+						$loggedinswitch , $loggedoutswitch ,
+						$ddeviceswitch , $tdeviceswitch , $mdeviceswitch , $odeviceswitch ,
+						$aosswitch , $wosswitch , $uosswitch , $oosswitch ,
+						$originswitch , $origin ,
+						$linkswitch , $link ,
+						$referrerswitch , $referrer ,
+						$mintime , $maxtime
+					)
+				);
+			}
+			else if( $metric['class'] == 'referrers' ){
+				$query_text_prepared = $wpdb->prepare(
+					"SELECT count(DISTINCT pagesession) as count , referrer as row
+					 FROM wp_bubo_insights_event_log
+					 WHERE ( loggedin IS NULL OR loggedin = %d OR loggedin = %d )
+					 AND ( device IS NULL OR device = %s OR device = %s OR device = %s OR device = %s )
+					 AND ( os IS NULL OR os = %s OR os = %s OR os = %s OR os = %s )
+					 AND ( 1 = %d OR origin LIKE %s ) 
+					 AND ( 1 = %d OR link LIKE %s )
+					 AND ( 1 = %d OR referrer LIKE %s )
+					 AND ( eventtime >= %d AND eventtime < %d )		 
+					 AND referrer <> %s AND referrer NOT LIKE %s
+					 GROUP BY referrer
+					 ORDER BY count(DISTINCT pagesession) DESC
+					 ",
+					array( 
+						$loggedinswitch , $loggedoutswitch ,
+						$ddeviceswitch , $tdeviceswitch , $mdeviceswitch , $odeviceswitch ,
+						$aosswitch , $wosswitch , $uosswitch , $oosswitch ,
+						$originswitch , $origin ,
+						$linkswitch , $link ,
+						$referrerswitch , $referrer ,
+						$mintime , $maxtime ,			
+						'' , $site_host
+					)
+				);
+			}
+			else if( $metric['class'] == 'externalclicks' ){
+				$query_text_prepared = $wpdb->prepare(
+					"SELECT count(link) as count , link as row
+					 FROM wp_bubo_insights_event_log
+					 WHERE ( loggedin IS NULL OR loggedin = %d OR loggedin = %d )
+					 AND ( device IS NULL OR device = %s OR device = %s OR device = %s OR device = %s )
+					 AND ( os IS NULL OR os = %s OR os = %s OR os = %s OR os = %s )
+					 AND ( 1 = %d OR origin LIKE %s ) 
+					 AND ( 1 = %d OR link LIKE %s )
+					 AND ( 1 = %d OR referrer LIKE %s )
+					 AND ( eventtime >= %d AND eventtime < %d )		 
+					 AND link <> %s AND link NOT LIKE %s AND eventtype = %s
+					 GROUP BY link
+					 ORDER BY count(link) DESC
+					 ",
+					array( 
+						$loggedinswitch , $loggedoutswitch ,
+						$ddeviceswitch , $tdeviceswitch , $mdeviceswitch , $odeviceswitch ,
+						$aosswitch , $wosswitch , $uosswitch , $oosswitch ,
+						$originswitch , $origin ,
+						$linkswitch , $link ,
+						$referrerswitch , $referrer ,
+						$mintime , $maxtime ,			
+						'' , $site_host , 'click'
+					)
+				);
+			}
+
+            $query = $wpdb->get_results($query_text_prepared);
             $metrics[$metric['class']]['multibar'] = $query;
         } 
     }
 
-ob_start();
+	// initializing response    
+	$block = array();
 
-    $maxes = array();
-    foreach($metrics as $metric) {
-        if(!empty($metric['bars'])) $maxes[$metric['class']] = max($metric['bars']);
-    }
-    $max = 1;
-    if(!empty($maxes)) $max = max($maxes) * 1.1;
-    
-    $max_magnitude = strlen(abs(round($max,0)));
-    $rounder = 10**($max_magnitude - 2);
-    $max = ceil( $max / (10 * $rounder) ) * 10 * $rounder;
+	$maxes = array();
+	foreach($metrics as $metric) {
+		if(!empty($metric['bars'])) $maxes[$metric['class']] = max($metric['bars']);
+	}
+	$max = 1;
+	if(!empty($maxes)) $max = max($maxes) * 1.1;
 
-    if($max == 0) $max = 1;
-    
-    $filters_labels = array(
-        'who_tags' => array( 'd' => 'Desktop', 't' => 'Tablet', 'm' => 'Mobile', '?' => 'Other devices', 'a' => 'Apple', 'w' => 'Windows', 'u' => 'Unix', '?' => 'Other OSs'),
-        'when' => array( 'hourly' => 'Hourly', 'daily' => 'Daily', 'weekly' => 'Weekly', 'monthly' => 'Monthly', 'yearly' => 'Yearly' ),
-    );
-    
-    
-    
-$block = array();
+	$max_magnitude = strlen(abs(round($max,0)));
+	$rounder = 10**($max_magnitude - 2);
+	$max = ceil( $max / (10 * $rounder) ) * 10 * $rounder;
 
-$legend = array();
-foreach($metrics as $metric) {
-    $legend[$metric['class']] = $metric['total'];
+	if($max == 0) $max = 1;
+
+	$filters_labels = array(
+		'who_tags' => array( 'd' => 'Desktop', 't' => 'Tablet', 'm' => 'Mobile', '?' => 'Other devices', 'a' => 'Apple', 'w' => 'Windows', 'u' => 'Unix', '?' => 'Other OSs'),
+		'when' => array( 'hourly' => 'Hourly', 'daily' => 'Daily', 'weekly' => 'Weekly', 'monthly' => 'Monthly', 'yearly' => 'Yearly' ),
+	);
+
+	//chart legend
+	$legend = array();
+	foreach($metrics as $metric) {
+		$legend[$metric['class']] = $metric['total'];
+	}
+	$block['legend'] = $legend;
+
+	//multibars' legends
+	$multibarcounters = array();
+	$multibarcounterstotal = array();
+	$multibarcountersavg = array();
+	$multibarcountersmin = array();
+	$multibarcountersmax = array();
+	foreach($metrics as $metric) {
+		$multibarcounters[$metric['class']] = array( 'total' => $metric['total'], 'avg' => $metric['avg_timespan'], 'min' => $metric['min_timespan'], 'max' => $metric['max_timespan'] );
+		$multibarcounterstotal[$metric['class']] = $metric['total'];
+		$multibarcountersavg[$metric['class']] = $metric['avg_timespan'];
+		$multibarcountersmin[$metric['class']] = $metric['min_timespan'];
+		$multibarcountersmax[$metric['class']] = $metric['max_timespan'];
+	}
+	$block['multibarcounters'] = $multibarcounters;
+	$block['multibarcounterstotal'] = $multibarcounterstotal;
+	$block['multibarcountersavg'] = $multibarcountersavg;
+	$block['multibarcountersmin'] = $multibarcountersmin;
+	$block['multibarcountersmax'] = $multibarcountersmax;
+
+	//multibars
+	$multibars = array();
+	foreach($metrics as $metric) {
+		$multibars[$metric['class']] = '';
+							$multimax = $metric['multibar'][0]->count;
+							if($multimax == 0) $multimax = 1;
+							for($m=0;$m<count($metric['multibar']);$m++){
+							$full_url = str_replace(array("https://", "www."), "", $metric['multibar'][$m]->row);
+							if($metric['class']=='users') {
+								$full_url = $filters_labels['who_tags'][$metric['multibar'][$m]->row];
+							}
+							$queryless_url = explode( "?", $metric['multibar'][$m]->row);
+							$url = explode( "#", $full_url);
+							if(!empty($url[1])) $url[1] = '<b>#' . $url[1] . '</b>';
+							$multibars[$metric['class']] .= '<div class="multibar  ' . $metric['class'] . '" >
+									<div class="multibarbar ' . $metric['class'] . '" style="width:calc(' . ( $metric['multibar'][$m]->count / $multimax ) * 100 . '% - 4px);"></div>
+										<span class="' . $metric['multibar_row_click']  . '" data-url="' . $queryless_url[0] . '" >[' . $metric['multibar'][$m]->count . ']</span>
+									<span class="bartext" >' . $url[0] . $url[1] . '</span>
+									<b><a href="' . $queryless_url[0] . '" target="_blank" >[➚]</a></b>
+								  </div>';
+							}
+	}
+	$block['multibars'] = $multibars;
+
+	//no items found notice
+	$block['foundnothing'] = '';
+	$no_results = array();
+	foreach($metrics as $metric) {
+		$no_results[$metric['label']] = $metric['total'];
+	}
+	if(array_sum($no_results) == 0) {
+		$block['foundnothing'] = '<div id="foundnothing" >No results with these criteria.</div>';
+	}
+
+	//x-axis
+	$block['xunit'] = '';
+	foreach($bars as $bar) {
+		if($bar['is_in_the_future'] == false) {
+		   $block['xunit'] .= '<div class="x-unit past" ><span>' . wp_kses( $bar['display'], array( 'sup' => array(), 'small' => array() ) ) . '</span></div>';
+		}
+		else {
+			$block['xunit'] .= '<div class="x-unit future" ><span>' . wp_kses( $bar['display'], array( 'sup' => array(), 'small' => array() ) ) . '</span></div>';
+		}
+	}
+
+	//y-axis
+	$block['yunit'] = '';
+	$y_magnitude = strlen(abs($max));
+	$y_rounder = 10**($y_magnitude-1);
+	$y_axis_number = ceil($max/($y_rounder));
+	$y_module = ceil((2 * ($max / $y_axis_number)/($y_rounder))) * 0.5 * $y_rounder;
+	if($max > 10 AND $y_axis_number < 6 ) {
+		$y_axis_number = $y_axis_number * 2;
+		$y_module = $y_module / 2;
+	}
+	for($i=0;$i<$y_axis_number+1;$i++){
+		$block['yunit'] .= '<div class="y-unit" ><span>' . wp_kses( ($max - $i * $y_module) , array() ) . '</span></div>';
+	}
+
+	//chart polylines
+	$block['polylines'] = '';
+	$chart_width = $limit - 1;
+	foreach($metrics as $metric) {
+		if($metric['condition'] AND $metric['polyline_enabled']) {
+			$block['polylines'] .= '<svg 	width="' . esc_attr( $chart_width ) . '" height="' . esc_attr( $max ) . '"
+											viewbox="0 0 ' . esc_attr( $chart_width ) . ' ' . esc_attr( $max ) . '" preserveAspectRatio="none"
+											><path class="' . esc_attr( $metric['class'] )  . '" d="M '. esc_attr( $metric['polyline'] ) . '" vector-effect="non-scaling-stroke" />
+									</svg>';
+		}
+	}
+
+	//chart counters
+	$block['counters'] = '';
+	$column_width = round(100 / ($limit - 1) , 3);
+	$column_modular_height = round(100 / $max , 4);
+	foreach($metrics as $metric) { 
+		$current_column = 0;
+		foreach($bars as $bar) {
+			$column_right = $current_column * $column_width;
+			if($metric['condition'] AND $metric['polyline_enabled'] AND $bar['is_in_the_future'] == false) {
+				$block['counters'] .= '<div  	class="counter ' . esc_attr( $metric['class'] )  . '"
+												style="bottom:' . esc_attr( ($metric['bars'][$bar['index']] * $column_modular_height) ) . '%;right:' . esc_attr( $column_right ) . '%;"
+												>' . wp_kses( $metric['bars'][$bar['index']] , array() ) 
+									. '</div>';
+			}
+			$current_column++;
+		}
+	}
+
+	//chart bars
+	$block['bars'] = '';
+	$column_width = round(100 / ($limit - 1) , 3);
+	$column_modular_height = round(300 / $max , 4);
+	foreach($metrics as $metric) { 
+		$current_column = 0;
+		foreach($bars as $bar) {
+			$column_right = $current_column * $column_width;
+			if($metric['condition'] AND $metric['bar_enabled'] AND $bar['is_in_the_future'] == false) {
+
+				$block['bars'] .= 	'<div  	class="barcounter ' . esc_attr( $metric['class'] )  . '"
+											style="height:' . esc_attr( ($metric['bars'][$bar['index']] * $column_modular_height ) ) . 'px;right:' . esc_attr( $column_right ) . '%;"
+											title="' . esc_attr( $metric['bars'][$bar['index']] ) . '">'
+								.   '</div>';
+			}
+			$current_column++;
+		}
+	}
+
+	return $block;
+    
 }
-$block['legend'] = $legend;
 
-$multibarcounters = array();
-foreach($metrics as $metric) {
-    $multibarcounters[$metric['class']] = array( 'total' => $metric['total'], 'avg' => $metric['avg_timespan'], 'min' => $metric['min_timespan'], 'max' => $metric['max_timespan'] );
-}
-$block['multibarcounters'] = $multibarcounters;
-
-$multibars = array();
-foreach($metrics as $metric) {
-    $multibars[$metric['class']] = '';
-                        $multimax = $metric['multibar'][0]->count;
-                        if($multimax == 0) $multimax = 1;
-                        for($m=0;$m<count($metric['multibar']);$m++){
-                        $full_url = str_replace(array("https://", "www."), "", $metric['multibar'][$m]->row);
-                        if($metric['class']=='users') {
-                            $full_url = $filters_labels['who_tags'][$metric['multibar'][$m]->row];
-                        }
-                        $queryless_url = explode( "?", $metric['multibar'][$m]->row);
-                        $url = explode( "#", $full_url);
-                        if(!empty($url[1])) $url[1] = '<b>#' . $url[1] . '</b>';
-                        $multibars[$metric['class']] .= '<div class="multibar  ' . $metric['class'] . '" >
-                                <div class="multibarbar ' . $metric['class'] . '" style="width:calc(' . ( $metric['multibar'][$m]->count / $multimax ) * 100 . '% - 4px);"></div>
-                                    <span class="' . $metric['multibar_row_click']  . '" data-url="' . $queryless_url[0] . '" >[' . $metric['multibar'][$m]->count . ']</span>
-                                <span class="bartext" >' . $url[0] . $url[1] . '</span>
-                                <b><a href="' . $queryless_url[0] . '" target="_blank" >[➚]</a></b>
-                              </div>';
-                        }
-}
-$block['multibars'] = $multibars;
-
-    echo '<div id="chart" >';
-    
-        $no_results = array();
-        foreach($metrics as $metric) {
-            $no_results[$metric['label']] = $metric['total'];
-        }
-        if(array_sum($no_results) == 0) echo '<div id="foundnothing" >No results with these criteria.</div>';
-    
-        echo '<div id="x-axis" >';
-        foreach($bars as $bar) {
-            if($bar['is_in_the_future'] == false) {
-               echo    '<div class="x-unit past" ><span>' . $bar['display'] . '</span></div>'; 
-            }
-            else {
-                echo    '<div class="x-unit future" ><span>' . $bar['display'] . '</span></div>';
-            }
-        }
-        echo '</div>';
-        
-        echo '<div id="y-axis" >';
-            $y_magnitude = strlen(abs($max));
-            $y_rounder = 10**($y_magnitude-1);
-            $y_axis_number = ceil($max/($y_rounder));
-            $y_module = ceil((2 * ($max / $y_axis_number)/($y_rounder))) * 0.5 * $y_rounder;
-            if($max > 10 AND $y_axis_number < 6 ) {
-                $y_axis_number = $y_axis_number * 2;
-                $y_module = $y_module / 2;
-            }
-            for($i=0;$i<$y_axis_number+1;$i++){
-                echo '<div class="y-unit" ><span>' . ($max - $i * $y_module) . '</span></div>';
-            }
-        echo '</div>';
-        
-        echo '<div id="polylines" >';
-            $chart_width = $limit - 1;
-            foreach($metrics as $metric) {
-                if($metric['condition'] AND $metric['polyline_enabled']) {
-                    echo   '<svg width="' . $chart_width . '" height="' . $max . '"
-                                 viewbox="0 0 ' . $chart_width . ' ' . $max . '" preserveAspectRatio="none" >
-                                <path class="' . $metric['class']  . '" d="M '. $metric['polyline'] . '" vector-effect="non-scaling-stroke" />
-                            </svg>';
-                }
-            }
-        echo '</div>';
-    
-        echo '<div id="counters" >';
-            $column_width = round(100 / ($limit - 1) , 3);
-            $column_modular_height = round(100 / $max , 4);
-            foreach($metrics as $metric) { 
-                $current_column = 0;
-                foreach($bars as $bar) {
-                    $column_right = $current_column * $column_width;
-                    if($metric['condition'] AND $metric['polyline_enabled'] AND $bar['is_in_the_future'] == false) {
-                        echo '<div  class="counter ' . $metric['class']  . '"
-                                    style="bottom:' . ($metric['bars'][$bar['index']] * $column_modular_height) . '%;right:' . $column_right . '%;"
-                                    >' . $metric['bars'][$bar['index']] . '</div>';
-                    }
-                    $current_column++;
-                }
-            }
-        echo '</div>';
-        
-        echo '<div id="bars" >';
-            $column_width = round(100 / ($limit - 1) , 3);
-            $column_modular_height = round(100 / $max , 4);
-            foreach($metrics as $metric) { 
-                $current_column = 0;
-                foreach($bars as $bar) {
-                    $column_right = $current_column * $column_width;
-                    if($metric['condition'] AND $metric['bar_enabled'] AND $bar['is_in_the_future'] == false) {
-                        echo '<div  class="barcounter ' . $metric['class']  . '"
-                                    style="height:' . ($metric['bars'][$bar['index']] * $column_modular_height ) . 'px;right:' . $column_right . '%;"
-                                    title="' . $metric['bars'][$bar['index']] . '"
-                                    ></div>';
-                    }
-                    $current_column++;
-                }
-            }
-        echo '</div>';
-        
-    echo '</div>'; 
-
-
-$block['chart'] = ob_get_clean();
-
-
-
-return $block;
-    
-}
+//end of plugin

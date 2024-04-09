@@ -3,8 +3,8 @@ Contributors: pizza2mozzarella
 Donate link: https://github.com/pizza2mozzarella/bubo_insights
 Tags: analytics, statistics, stats, visits, tracking
 Requires at least: 6.0.0
-Tested up to: 6.4.2
-Stable tag: 1.0.0
+Tested up to: 6.5.0
+Stable tag: 1.0.1
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
@@ -38,6 +38,9 @@ Bubo is the latin name for the owl, an animal that examines the enviroment and i
 Yes there are dozens of them but no one had the characteristics I needed such as a zero cookie approach to be GDRP compliant, an easy to use interface and strategic data collection such as external click tracking... In the end I just coded it by myself and I was so satisfied that I decided to release it to the public. Enjoy my work.
 
 == Changelog ==
+
+= 1.0.1 =
+* Revised to comply WP.org guidelines.
 
 = 1.0 =
 * Plugin released to the public.
