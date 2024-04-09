@@ -6,4 +6,4 @@ It uses AJAX (with jQuery script) to track user information and anonimously fing
 
 Data is collected in an efficient way to keep the database small yet rich of information. The simple yet flexible interface of the plugin permits the execution of deep analytics of the traffic with customizable filters, userbase and timespans.
 
-The plugin is still in it's early stage of realease and will soon add many new innovative ways to analyze the website traffic.
+The plugin is still in it's early stage of release and will soon add many new innovative ways to analyze the website traffic.
